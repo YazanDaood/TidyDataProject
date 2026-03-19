@@ -1,13 +1,51 @@
-Version: 1.0
+library(dplyr)
 
-RestoreWorkspace: Default
-SaveWorkspace: Default
-AlwaysSaveHistory: Default
+# 1. قراءة البيانات
+features <- read.table("UCI HAR Dataset/features.txt")
+activities <- read.table("UCI HAR Dataset/activity_labels.txt", col.names = c("id", "name"))
 
-EnableCodeIndexing: Yes
-UseSpacesForTab: Yes
-NumSpacesForTab: 2
-Encoding: UTF-8
+train_x <- read.table("UCI HAR Dataset/train/X_train.txt")
+train_y <- read.table("UCI HAR Dataset/train/y_train.txt")
+train_subject <- read.table("UCI HAR Dataset/train/subject_train.txt")
 
-RnwWeave: Sweave
-LaTeX: pdfLaTeX
+test_x <- read.table("UCI HAR Dataset/test/X_test.txt")
+test_y <- read.table("UCI HAR Dataset/test/y_test.txt")
+test_subject <- read.table("UCI HAR Dataset/test/subject_test.txt")
+
+# 2. دمج البيانات
+all_x <- rbind(train_x, test_x)
+all_y <- rbind(train_y, test_y)
+all_subject <- rbind(train_subject, test_subject)
+
+colnames(all_x) <- features[, 2]
+colnames(all_y) <- "activity_id"
+colnames(all_subject) <- "subject"
+
+combined_data <- cbind(all_subject, all_y, all_x)
+
+# 3. استخراج المتوسط والانحراف المعياري
+tidy_subset <- combined_data %>% 
+  select(subject, activity_id, contains("-mean()"), contains("-std()"))
+
+# 4. تسمية الأنشطة
+tidy_subset$activity_id <- activities[match(tidy_subset$activity_id, activities$id), 2]
+colnames(tidy_subset)[2] <- "activity"
+
+# 5. تنظيف أسماء الأعمدة
+names(tidy_subset) <- gsub("^t", "Time", names(tidy_subset))
+names(tidy_subset) <- gsub("^f", "Frequency", names(tidy_subset))
+names(tidy_subset) <- gsub("Acc", "Accelerometer", names(tidy_subset))
+names(tidy_subset) <- gsub("Gyro", "Gyroscope", names(tidy_subset))
+names(tidy_subset) <- gsub("Mag", "Magnitude", names(tidy_subset))
+names(tidy_subset) <- gsub("BodyBody", "Body", names(tidy_subset))
+names(tidy_subset) <- gsub("-mean\\(\\)", "Mean", names(tidy_subset))
+names(tidy_subset) <- gsub("-std\\(\\)", "STD", names(tidy_subset))
+names(tidy_subset) <- gsub("-", "", names(tidy_subset))
+
+# 6. التجميع النهائي (180 صف)
+final_tidy_data <- tidy_subset %>%
+  group_by(subject, activity) %>%
+  summarise(across(everything(), mean), .groups = "drop")
+
+# 7. حفظ الملف
+write.table(final_tidy_data, "FinalTidyData.txt", row.name = FALSE)
